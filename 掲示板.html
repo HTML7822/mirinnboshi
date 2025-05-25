@@ -1,0 +1,254 @@
+
+    <!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>掲示板</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      width: 80%;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: white;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .post-form {
+      margin-bottom: 30px;
+    }
+    .post-form input, .post-form textarea {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+    .post-form button {
+      padding: 10px 20px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .post-form button:hover {
+      background-color: #3367d6;
+    }
+    .posts {
+      list-style-type: none;
+      padding: 0;
+    }
+    .post {
+      background-color: #fafafa;
+      border: 1px solid #ddd;
+      margin-bottom: 15px;
+      padding: 15px;
+      border-radius: 5px;
+    }
+    .post .author {
+      font-weight: bold;
+    }
+    .post .content {
+      margin-top: 10px;
+    }
+    .post .timestamp {
+      font-size: 0.8em;
+      color: #777;
+    }
+    .post .reply-button {
+      background-color: #34a853;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .post .delete-button {
+      background-color: #ea4335;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .reply-form {
+      margin-top: 15px;
+      padding-left: 20px;
+    }
+    .reply-form input, .reply-form textarea {
+      width: 90%;
+      margin-bottom: 10px;
+    }
+    .image-preview {
+      max-width: 100%;
+      max-height: 300px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>掲示板</h1>
+
+    <!-- 検索フォーム -->
+    <input type="text" id="search-input" placeholder="キーワードで検索..." oninput="searchPosts()" style="width: 100%; padding: 10px; margin-bottom: 20px; font-size: 16px;">
+
+    <!-- 投稿フォーム -->
+    <div class="post-form">
+      <input type="text" id="user-name" placeholder="ユーザー名">
+      <textarea id="post-content" placeholder="投稿内容を書いてください..."></textarea>
+      <input type="file" id="image-upload" accept="image/*">
+      <br>
+      <button onclick="addPost()">投稿</button>
+    </div>
+
+    <!-- 投稿リスト -->
+    <ul class="posts" id="post-list"></ul>
+  </div>
+
+  <script>
+    let posts = JSON.parse(localStorage.getItem('posts')) || [];
+
+    function addPost() {
+      const userName = document.getElementById("user-name").value;
+      const content = document.getElementById("post-content").value;
+      const imageInput = document.getElementById("image-upload");
+      const imageFile = imageInput.files[0];
+      let imageURL = '';
+
+      if (!userName.trim()) {
+        alert("ユーザー名を入力してください。");
+        return;
+      }
+
+      if (content.trim() === "" && !imageFile) {
+        alert("投稿内容を入力してください、または画像をアップロードしてください。");
+        return;
+      }
+
+      if (imageFile) {
+        imageURL = URL.createObjectURL(imageFile);
+      }
+
+      const newPost = {
+        id: Date.now(),
+        author: userName,
+        content: content,
+        image: imageURL,
+        timestamp: new Date().toLocaleString(),
+        replies: []
+      };
+
+      posts.push(newPost);
+      localStorage.setItem('posts', JSON.stringify(posts));
+
+      document.getElementById("user-name").value = "";
+      document.getElementById("post-content").value = "";
+      imageInput.value = '';
+
+      searchPosts(); // 検索を反映
+    }
+
+    function displayPosts(filteredPosts) {
+      const postList = document.getElementById("post-list");
+      postList.innerHTML = "";
+
+      filteredPosts.forEach(post => {
+        const postElement = document.createElement("li");
+        postElement.classList.add("post");
+
+        postElement.innerHTML = `
+          <div class="author">${post.author} - <span class="timestamp">${post.timestamp}</span></div>
+          <div class="content">${post.content}</div>
+          ${post.image ? `<img src="${post.image}" class="image-preview" alt="画像">` : ''}
+          <button class="reply-button" onclick="showReplyForm(${post.id})">返信</button>
+          <button class="delete-button" onclick="deletePost(${post.id})">削除</button>
+          <div class="replies" id="replies-${post.id}">
+            ${post.replies.map(reply => `
+              <div class="reply">
+                <strong>${reply.author}</strong>: ${reply.content}
+              </div>
+            `).join('')}
+          </div>
+          <div class="reply-form" id="reply-form-${post.id}" style="display: none;">
+            <input type="text" id="reply-name-${post.id}" placeholder="ユーザー名">
+            <textarea id="reply-content-${post.id}" placeholder="返信内容を書いてください..."></textarea>
+            <button onclick="addReply(${post.id})">返信する</button>
+          </div>
+        `;
+
+        postList.appendChild(postElement);
+      });
+    }
+
+    function showReplyForm(postId) {
+      const replyForm = document.getElementById(`reply-form-${postId}`);
+      replyForm.style.display = replyForm.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function addReply(postId) {
+      const replyName = document.getElementById(`reply-name-${postId}`).value;
+      const replyContent = document.getElementById(`reply-content-${postId}`).value;
+
+      if (!replyName.trim()) {
+        alert("ユーザー名を入力してください。");
+        return;
+      }
+
+      if (replyContent.trim() === "") {
+        alert("返信内容を入力してください。");
+        return;
+      }
+
+      const reply = {
+        author: replyName,
+        content: replyContent
+      };
+
+      const post = posts.find(post => post.id === postId);
+      post.replies.push(reply);
+      localStorage.setItem('posts', JSON.stringify(posts));
+
+      searchPosts(); // 検索を反映
+    }
+
+    function deletePost(postId) {
+      posts = posts.filter(post => post.id !== postId);
+      localStorage.setItem('posts', JSON.stringify(posts));
+
+      searchPosts(); // 検索を反映
+    }
+
+    function searchPosts() {
+      const keyword = document.getElementById("search-input").value.toLowerCase();
+      const filtered = posts.filter(post =>
+        post.author.toLowerCase().includes(keyword) ||
+        post.content.toLowerCase().includes(keyword) ||
+        post.replies.some(reply =>
+          reply.author.toLowerCase().includes(keyword) ||
+          reply.content.toLowerCase().includes(keyword)
+        )
+      );
+      displayPosts(filtered);
+    }
+
+    // 初期表示
+    searchPosts();
+  </script>
+
+</body>
+</html>
+                  
